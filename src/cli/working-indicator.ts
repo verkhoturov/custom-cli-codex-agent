@@ -15,7 +15,7 @@ export class WorkingIndicator {
   }
 
   show(): void {
-    if (!process.stdout.isTTY) {
+    if (!process.stdout.isTTY || this.visible) {
       return;
     }
 

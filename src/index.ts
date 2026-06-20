@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import { createCodexMcpClient } from './agent.js';
+import { CodexAppServerClient } from './app-server/client.js';
 import { checkCodexCli, runCli } from './cli/index.js';
-import { loadLocalEnv, parseArgs, usage } from './config.js';
+import { loadLocalEnv, parseArgs, requireOpenAiApiKey, usage } from './config.js';
 
 async function main(): Promise<void> {
   loadLocalEnv();
@@ -13,22 +13,23 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error(
-      'OPENAI_API_KEY is not set. Add it to .env or export it in your shell. ChatGPT login in Codex CLI does not authenticate the Agents SDK.',
-    );
-  }
-
+  const apiKey = requireOpenAiApiKey();
   const codexVersion = checkCodexCli();
-  process.stdout.write(`Using ${codexVersion}\nConnecting to Codex MCP...\n`);
+  process.stdout.write(
+    `Using ${codexVersion}\nAuthentication: API key only\nConnecting to Codex app-server...\n`,
+  );
 
-  const codexMcpServer = createCodexMcpClient(state);
-  await codexMcpServer.connect();
+  const appServer = new CodexAppServerClient({
+    apiKey,
+    codexHome: state.codexHome,
+    cwd: state.cwd,
+  });
 
   try {
-    await runCli(state, codexMcpServer);
+    await appServer.connect();
+    await runCli(state, appServer);
   } finally {
-    await codexMcpServer.close();
+    await appServer.close();
   }
 }
 

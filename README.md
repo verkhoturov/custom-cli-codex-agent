@@ -1,49 +1,30 @@
 # Custom Codex Agent
 
-Интерактивный CLI-агент для анализа и написания кода. Оркестрация работает
-через OpenAI Agents SDK, а операции с репозиторием выполняет Codex CLI,
-запущенный как MCP-сервер.
+Интерактивный терминальный клиент для анализа репозиториев и написания кода.
+Клиент напрямую подключается к `codex app-server`.
 
 ## Требования
 
 - Node.js 22 или новее
 - установленный Codex CLI
-- авторизация Codex CLI через `codex login`
-- OpenAI API key для Agents SDK
+- OpenAI API key с доступом к выбранной модели
 
-Авторизация Codex через ChatGPT и API key для Agents SDK независимы. Проверить
-ключ без вывода его значения можно так:
-
-```bash
-test -n "$OPENAI_API_KEY" && echo "OPENAI_API_KEY is set" || echo "OPENAI_API_KEY is not set"
-```
-
-Создать ключ можно в [OpenAI API dashboard](https://platform.openai.com/api-keys).
-
-## Установка
+## Установка и запуск
 
 ```bash
 npm install
 cp .env.example .env
+npm run dev
 ```
 
 Укажите ключ в `.env`:
 
 ```dotenv
 OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-5.5
-OPENAI_REASONING_EFFORT=xhigh
 ```
 
-Файл `.env` исключен из Git.
-
-## Запуск
-
-Во время разработки:
-
-```bash
-npm run dev
-```
+Файл `.env` исключен из Git. Использование API key оплачивается через OpenAI
+Platform по стандартным API-тарифам и не расходует лимит подписки ChatGPT.
 
 Сборка и запуск JavaScript:
 
@@ -52,79 +33,96 @@ npm run build
 npm start
 ```
 
-Можно открыть другой репозиторий и выбрать режим доступа:
+Чтобы открыть другой репозиторий или изменить режим доступа:
 
 ```bash
 npm run dev -- --cwd ../my-project --sandbox workspace-write
 ```
 
-Модель и reasoning effort также можно задать аргументами:
+Модель и reasoning effort задаются аргументами:
 
 ```bash
 npm run dev -- --model gpt-5.5 --reasoning-effort xhigh
 ```
 
-Допустимые значения effort: `none`, `minimal`, `low`, `medium`, `high`,
-`xhigh`. Поддержка конкретного уровня зависит от выбранной модели.
+Настройки модели можно добавить в тот же `.env`:
 
-Доступны только `read-only` и `workspace-write`. Интеграция запускает Codex с
-`approval-policy: never`, как в официальном примере Agents SDK + Codex MCP.
-Изоляцию операций обеспечивает выбранный sandbox; режим полного доступа намеренно
-не предоставляется.
+```dotenv
+OPENAI_API_KEY=sk-...
+CODEX_MODEL=gpt-5.5
+CODEX_REASONING_EFFORT=xhigh
+```
+
+Допустимые значения effort: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`.
+Конкретная модель может поддерживать не все уровни. Полный список аргументов
+доступен через `npm run dev -- --help`.
+
+App Server использует отдельный каталог
+`~/.custom-codex-agent/codex-home` для credentials и истории thread. Путь можно
+переопределить через `CUSTOM_CODEX_HOME`. Этот каталог принадлежит приложению;
+его `auth.json` следует защищать как пароль.
+
+## Доступ и approvals
+
+Поддерживаются sandbox-режимы `read-only` и `workspace-write`. По умолчанию
+используется `workspace-write` с approval policy `on-request`. Если Codex хочет
+выполнить действие, требующее дополнительного доступа, CLI показывает запрос на
+подтверждение.
 
 ## Команды
 
 | Команда | Назначение |
 | --- | --- |
 | `/help` | Показать команды |
-| `/new` | Начать новый диалог и Codex thread |
-| `/resume <thread-id>` | Продолжить известный Codex thread |
-| `/status` | Показать текущие настройки |
-| `/model [model] [effort]` | Показать или изменить модель и reasoning effort |
+| `/new` | Начать новый Codex thread |
+| `/resume <thread-id>` | Продолжить сохраненный Codex thread |
+| `/status` | Показать текущие настройки и thread ID |
+| `/model [model] [effort]` | Показать или изменить модель и effort |
 | `/permissions [mode]` | Переключить `read-only` / `workspace-write` |
-| `/clear` | Очистить экран и начать новый диалог |
+| `/clear` | Очистить экран и начать новый thread |
 | `/exit` | Завершить работу |
 
-История хранится только в памяти процесса. Для остановки текущего запроса нажмите
-`Ctrl+C`; повторный `Ctrl+C` в режиме ожидания завершает CLI.
+`Ctrl+C` во время выполнения отправляет `turn/interrupt` в App Server. В режиме
+ожидания `Ctrl+C` завершает CLI.
 
-При завершении CLI выводит накопленную статистику внешнего Agents SDK агента и,
-если Codex thread уже был создан, команду его продолжения:
+При выходе выводятся накопленная статистика токенов и команда для продолжения
+того же thread в нативном Codex CLI:
 
 ```text
 Token usage: total=144 input=139 (+ 14,592 cached) output=5
-To continue this session, run codex resume 019ee5a7-aa89-7fd3-8c52-2841d1017de9
+To continue this session, run CODEX_HOME='...' codex -c 'forced_login_method="api"' resume 019ee5a7-aa89-7fd3-8c52-2841d1017de9
 ```
-
-Команда `codex resume` продолжает внутренний Codex thread. In-memory история
-внешнего агента между запусками CLI не сохраняется.
 
 ## Вывод действий
 
-Во время выполнения CLI показывает доступные reasoning summaries и состояние
-работы агента:
+App Server передает события Codex напрямую. CLI показывает статус `Working` с
+таймером, reasoning summaries, команды, изменения файлов, MCP-вызовы, web search
+и потоковый ответ агента. Служебные пустые события и thread ID в потоке действий
+не выводятся; thread ID доступен через `/status`.
+
+Reasoning summaries являются краткими сводками, предоставленными Codex, а не
+скрытой цепочкой рассуждений модели.
+
+Для диагностики протокола можно запустить CLI с `DEBUG_APP_SERVER=1`.
+
+## Архитектура
 
 ```text
-Working (3s, Ctrl+C to interrupt)
-[reasoning] Нужно сначала изучить структуру проекта.
-Working (8s, Ctrl+C to interrupt)
-agent> Готово...
+пользователь -> Custom CLI -> codex app-server -> Codex Agent -> ответ
 ```
 
-Строка `Working` обновляется каждую секунду и показывает время от начала
-текущего пользовательского запроса. Перед выводом reasoning или ответа она
-временно очищается, поэтому сообщения не смешиваются между собой.
+Клиент запускает App Server в изолированном `CODEX_HOME`, выполняет
+`account/login/start` только с типом `apiKey`, затем проверяет `account/read`.
+ChatGPT login, device auth и access tokens в клиенте отсутствуют. После
+авторизации клиент использует `thread/start`, `thread/resume`, `turn/start`,
+`turn/interrupt`, потоковые notifications и server requests для approvals.
 
-Это summaries, предоставленные API, а не скрытая цепочка рассуждений модели.
-
-Codex MCP возвращает свою работу как один tool call. Для показа внутренних
-команд, изменений файлов и промежуточных событий Codex потребуется интеграция
-через `codex app-server` вместо MCP-инструмента.
-Технические события `codex`, `codex-reply`, их завершение и `threadId` в
-обычном выводе скрываются; текущий ID доступен через `/status`.
+App Server пока относится к экспериментальным интерфейсам Codex, поэтому при
+обновлении Codex CLI схема протокола может измениться.
 
 ## Документация
 
-- [Agents SDK quickstart](https://developers.openai.com/api/docs/guides/agents-sdk/quickstart)
-- [Use Codex with the Agents SDK](https://developers.openai.com/codex/guides/agents-sdk)
-- [Codex MCP server](https://developers.openai.com/codex/guides/agents-sdk#initialize-codex-cli-as-an-mcp-server)
+- [Codex App Server](https://developers.openai.com/codex/app-server)
+- [Codex authentication](https://developers.openai.com/codex/auth)
+- [Codex CLI](https://developers.openai.com/codex/cli)
+- [Codex security](https://developers.openai.com/codex/security)

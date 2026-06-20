@@ -10,14 +10,5 @@ export function checkCodexCli(): string {
     throw new Error('Codex CLI is not available. Install it and make sure `codex` is in PATH.');
   }
 
-  const login = spawnSync('codex', ['login', 'status'], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-
-  if (login.error || login.status !== 0) {
-    throw new Error('Codex CLI is not authenticated. Run `codex login` first.');
-  }
-
   return version.stdout.trim();
 }

@@ -1,21 +1,21 @@
-import type { MemorySession } from '@openai/agents';
-
-import { type CliState, isReasoningEffort, isSandboxMode } from '../types.js';
+import type { CodexAppServerClient } from '../app-server/client.js';
+import { resumeThread } from '../app-server/session.js';
+import { type CliState, isReasoningEffort, isSandboxMode, type ReasoningEffort } from '../types.js';
 import { printStatus, printWelcome } from './common.js';
 
 const COMMANDS = `/help                         Show commands
-/new                          Start a new in-memory conversation
-/resume <thread-id>           Continue a known Codex thread
+/new                          Start a new Codex thread
+/resume <thread-id>           Resume a saved Codex thread
 /status                       Show current configuration
 /model [model] [effort]       Show or change model and reasoning effort
 /permissions [mode]           Show or set read-only/workspace-write
-/clear                        Clear the screen and start a new conversation
+/clear                        Clear the screen and start a new thread
 /exit                         Exit the CLI`;
 
 export async function handleCommand(
   input: string,
   state: CliState,
-  session: MemorySession,
+  client: CodexAppServerClient,
 ): Promise<boolean> {
   const [command, ...argumentsList] = input.split(/\s+/);
   const argument = argumentsList.join(' ').trim();
@@ -26,20 +26,20 @@ export async function handleCommand(
       return false;
 
     case '/new':
-      await resetConversation(state, session);
+      resetThread(state);
       process.stdout.write('Started a new conversation.\n');
       return false;
 
     case '/resume':
       if (!argument) {
         process.stdout.write(
-          `Usage: /resume <thread-id>${state.codexThreadId ? `\nCurrent: ${state.codexThreadId}` : ''}\n`,
+          `Usage: /resume <thread-id>${state.threadId ? `\nCurrent: ${state.threadId}` : ''}\n`,
         );
         return false;
       }
-      await session.clearSession();
-      state.codexThreadId = argument;
-      process.stdout.write(`Will resume Codex thread ${argument}.\n`);
+      await resumeThread(client, state, argument);
+      state.tokenUsage = undefined;
+      process.stdout.write(`Resumed Codex thread ${state.threadId}.\n`);
       return false;
 
     case '/status':
@@ -48,34 +48,28 @@ export async function handleCommand(
 
     case '/model': {
       if (!argument) {
-        process.stdout.write(
-          `Model: ${state.model} (reasoning: ${state.reasoningEffort || 'default'})\n`,
-        );
+        process.stdout.write(`Model: ${state.model} (reasoning: ${state.reasoningEffort})\n`);
         return false;
       }
-      const [model, effort] = argumentsList;
-      if (!model || argumentsList.length > 2) {
+      const settings = parseModelSettings(argumentsList);
+      if (!settings) {
         process.stdout.write('Usage: /model <model> [none|minimal|low|medium|high|xhigh]\n');
         return false;
       }
-      if (effort) {
-        if (!isReasoningEffort(effort)) {
-          process.stdout.write('Usage: /model <model> [none|minimal|low|medium|high|xhigh]\n');
-          return false;
-        }
-        state.reasoningEffort = effort;
+      state.model = settings.model;
+      if (settings.effort) {
+        state.reasoningEffort = settings.effort;
       }
-      state.model = model;
-      await resetConversation(state, session);
+      resetThread(state);
       process.stdout.write(
-        `Model changed to ${state.model} (reasoning: ${state.reasoningEffort || 'default'}). Started a new conversation.\n`,
+        `Model changed to ${state.model} (${state.reasoningEffort}). Started a new conversation.\n`,
       );
       return false;
     }
 
     case '/permissions':
       if (!argument) {
-        process.stdout.write(`Sandbox: ${state.sandbox}\n`);
+        process.stdout.write(`Sandbox: ${state.sandbox}; approvals: ${state.approvalPolicy}\n`);
         return false;
       }
       if (!isSandboxMode(argument)) {
@@ -83,13 +77,13 @@ export async function handleCommand(
         return false;
       }
       state.sandbox = argument;
-      await resetConversation(state, session);
+      resetThread(state);
       process.stdout.write(`Sandbox changed to ${argument}. Started a new conversation.\n`);
       return false;
 
     case '/clear':
       console.clear();
-      await resetConversation(state, session);
+      resetThread(state);
       printWelcome(state);
       return false;
 
@@ -103,7 +97,27 @@ export async function handleCommand(
   }
 }
 
-async function resetConversation(state: CliState, session: MemorySession): Promise<void> {
-  await session.clearSession();
-  state.codexThreadId = undefined;
+function resetThread(state: CliState): void {
+  state.threadId = undefined;
+  state.tokenUsage = undefined;
+}
+
+interface ModelSettings {
+  effort?: ReasoningEffort;
+  model: string;
+}
+
+function parseModelSettings(argumentsList: string[]): ModelSettings | undefined {
+  const [model, effort] = argumentsList;
+  if (!model || argumentsList.length > 2) {
+    return undefined;
+  }
+  let parsedEffort: ReasoningEffort | undefined;
+  if (effort) {
+    if (!isReasoningEffort(effort)) {
+      return undefined;
+    }
+    parsedEffort = effort;
+  }
+  return { effort: parsedEffort, model };
 }
