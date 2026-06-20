@@ -78,6 +78,17 @@ npm run dev -- --cwd ../my-project --sandbox workspace-write
 История хранится только в памяти процесса. Для остановки текущего запроса нажмите
 `Ctrl+C`; повторный `Ctrl+C` в режиме ожидания завершает CLI.
 
+При завершении CLI выводит накопленную статистику внешнего Agents SDK агента и,
+если Codex thread уже был создан, команду его продолжения:
+
+```text
+Token usage: total=144 input=139 (+ 14,592 cached) output=5
+To continue this session, run codex resume 019ee5a7-aa89-7fd3-8c52-2841d1017de9
+```
+
+Команда `codex resume` продолжает внутренний Codex thread. In-memory история
+внешнего агента между запусками CLI не сохраняется.
+
 ## Вывод действий
 
 Во время выполнения CLI показывает доступные reasoning summaries и события

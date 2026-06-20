@@ -16,6 +16,7 @@ export function checkCodexCli(): string {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
+  
   if (login.error || login.status !== 0) {
     throw new Error("Codex CLI is not authenticated. Run `codex login` first.");
   }

@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline/promises";
 
-import { MemorySession, run, type MCPServerStdio } from "@openai/agents";
+import { MemorySession, run, Usage, type MCPServerStdio } from "@openai/agents";
 
 import { createCodingAgent } from "../agent.js";
 import type { CliState } from "../types.js";
@@ -12,6 +12,7 @@ import {
   finishRunOutput,
   renderRunEvent,
 } from "./render-run-event.js";
+import { printSessionSummary } from "./session-summary.js";
 import { WorkingIndicator } from "./working-indicator.js";
 
 export { checkCodexCli };
@@ -21,6 +22,7 @@ export async function runCli(
   codexMcpServer: MCPServerStdio,
 ): Promise<void> {
   const session = new MemorySession();
+  const sessionUsage = new Usage();
   const readline = createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -73,6 +75,7 @@ export async function runCli(
           state,
           codexMcpServer,
           session,
+          sessionUsage,
           activeAbortController.signal,
         );
       } catch (error) {
@@ -85,6 +88,7 @@ export async function runCli(
     }
   } finally {
     readline.close();
+    printSessionSummary(sessionUsage, state.codexThreadId);
   }
 }
 
@@ -93,6 +97,7 @@ async function executeTurn(
   state: CliState,
   codexMcpServer: MCPServerStdio,
   session: MemorySession,
+  sessionUsage: Usage,
   signal: AbortSignal,
 ): Promise<void> {
   const agent = createCodingAgent(state, codexMcpServer);
@@ -115,21 +120,25 @@ async function executeTurn(
       maxTurns: 20,
     });
 
-    const output = createRunOutputState(() => working.hide());
+    try {
+      const output = createRunOutputState(() => working.hide());
 
-    for await (const event of result) {
-      renderRunEvent(event, output, state);
-      if (!output.openLine) {
-        working.show();
+      for await (const event of result) {
+        renderRunEvent(event, output, state);
+        if (!output.openLine) {
+          working.show();
+        }
       }
-    }
 
-    working.hide();
-    finishRunOutput(output);
-    await result.completed;
+      working.hide();
+      finishRunOutput(output);
+      await result.completed;
 
-    if (!output.streamedText && typeof result.finalOutput === "string") {
-      process.stdout.write(`agent> ${result.finalOutput}\n`);
+      if (!output.streamedText && typeof result.finalOutput === "string") {
+        process.stdout.write(`agent> ${result.finalOutput}\n`);
+      }
+    } finally {
+      sessionUsage.add(result.state.usage);
     }
   } finally {
     working.stop();
