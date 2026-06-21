@@ -1,7 +1,7 @@
 import { WorkflowRunner } from '../agents/workflow-runner.js';
 import type { AppServerClient } from '../app-server/client.js';
 import type { CliState } from '../types.js';
-import { handleCommand } from './commands.js';
+import { type CommandResult, handleCommand } from './commands.js';
 import { handleServerRequest } from './server-requests/handler.js';
 import { PromptQueue } from './server-requests/queue.js';
 import { printSessionSummary, printWelcome } from './session-output.js';
@@ -13,8 +13,9 @@ export async function runCli(
   client: AppServerClient,
   terminal: Terminal = new NodeTerminal(),
   resumeThreadId?: string,
-): Promise<void> {
+): Promise<Exclude<CommandResult, 'continue'>> {
   let exiting = false;
+  let exitResult: Exclude<CommandResult, 'continue'> = 'exit';
   const promptQueue = new PromptQueue();
   const turnRunner = new TurnRunner(state, client, terminal);
   const workflowRunner = new WorkflowRunner(state, turnRunner, terminal);
@@ -52,7 +53,8 @@ export async function runCli(
 
       if (input.startsWith('/')) {
         const result = await handleCommand(input, { client, state, terminal });
-        if (result === 'exit') {
+        if (result !== 'continue') {
+          exitResult = result;
           break;
         }
         continue;
@@ -70,4 +72,6 @@ export async function runCli(
     terminal.close();
     printSessionSummary(terminal, state);
   }
+
+  return exitResult;
 }

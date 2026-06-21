@@ -11,7 +11,7 @@ import {
 import { printStatus, printWelcome } from './session-output.js';
 import type { Terminal } from './terminal.js';
 
-export type CommandResult = 'continue' | 'exit';
+export type CommandResult = 'continue' | 'exit' | 'logout';
 
 export interface CommandContext {
   client: AppServerClient;
@@ -74,6 +74,12 @@ const COMMANDS: CliCommand[] = [
     execute: clearConversation,
     names: ['/clear'],
     usage: '/clear',
+  },
+  {
+    description: 'Log out of Codex and exit the CLI',
+    execute: logout,
+    names: ['/logout'],
+    usage: '/logout',
   },
   {
     description: 'Exit the CLI',
@@ -213,6 +219,24 @@ function clearConversation({ state, terminal }: CommandContext): CommandResult {
   resetWorkflow(state);
   printWelcome(terminal, state);
   return 'continue';
+}
+
+async function logout({ terminal }: CommandContext, args: string[]): Promise<CommandResult> {
+  if (args.length > 0) {
+    terminal.write('Usage: /logout\n');
+    return 'continue';
+  }
+
+  const answer = (await terminal.question('Log out of Codex and exit? [y/N] '))
+    .trim()
+    .toLowerCase();
+  if (answer !== 'y' && answer !== 'yes') {
+    terminal.write('Logout cancelled.\n');
+    return 'continue';
+  }
+
+  terminal.write('Closing the session before logout...\n');
+  return 'logout';
 }
 
 function resetWorkflow(state: CliState): void {

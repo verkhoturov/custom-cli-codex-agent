@@ -18,6 +18,7 @@ import {
 const REASONING_EFFORT_HELP = 'none, minimal, low, medium, high, or xhigh';
 
 export interface ParsedArgs {
+  forceLogin: boolean;
   help: boolean;
   resumeThreadId?: string;
   state: CliState;
@@ -29,6 +30,7 @@ export function parseArgs(args: string[]): ParsedArgs {
   let reasoningEffortOverride: ReasoningEffort | undefined;
   let resumeThreadId: string | undefined;
   let sandbox: SandboxMode = DEFAULT_SANDBOX;
+  let forceLogin = false;
   let help = false;
 
   for (let index = 0; index < args.length; index += 1) {
@@ -36,6 +38,11 @@ export function parseArgs(args: string[]): ParsedArgs {
 
     if (argument === '--help' || argument === '-h') {
       help = true;
+      continue;
+    }
+
+    if (argument === '--login') {
+      forceLogin = true;
       continue;
     }
 
@@ -85,6 +92,7 @@ export function parseArgs(args: string[]): ParsedArgs {
   }
 
   return {
+    forceLogin,
     help,
     resumeThreadId,
     state: {

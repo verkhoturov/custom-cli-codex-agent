@@ -3,6 +3,12 @@ import { fileURLToPath } from 'node:url';
 
 import type { CliState, ReasoningEffort, SandboxMode } from './types.js';
 
+export const APP_SERVER_CLIENT_INFO = {
+  name: 'custom_codex_agent',
+  title: 'Custom Codex Agent',
+  version: '1.0.0',
+} as const;
+
 export const DEFAULT_CODEX_HOME = join(
   fileURLToPath(new URL('..', import.meta.url)),
   '.codex-data',
@@ -21,6 +27,7 @@ export function usage(): string {
 
 Options:
   -C, --cwd <path>        Working directory (default: current directory)
+  --login                 Choose and replace saved Codex authentication
   -m, --model <model>     Implementer model (default: ${DEFAULT_MODEL})
   -r, --reasoning-effort <effort>  Override dynamic implementer effort
   --resume <thread-id>    Resume a coordinator thread on startup

@@ -1,24 +1,33 @@
 import { createAgentProfiles } from '../agents/profiles.js';
 import type { TokenUsageBreakdown } from '../app-server/protocol.js';
 import { AGENT_ROLES, type CliState } from '../types.js';
+import { APP_SERVER_CLIENT_INFO } from '../config.js';
 import type { Terminal } from './terminal.js';
 
 const numberFormat = new Intl.NumberFormat('en-US');
 
 export function printWelcome(terminal: Terminal, state: CliState): void {
   const profiles = createAgentProfiles(state);
-  terminal.write(`Custom Codex Agent
+
+  terminal.write(`
+----------------------------------------------------------------------------------
+
+${APP_SERVER_CLIENT_INFO.title} (${APP_SERVER_CLIENT_INFO.version})
+
 cwd: ${state.cwd}
 coordinator: ${profiles.coordinator.model} (${profiles.coordinator.reasoningEffort})
 analyzer: ${profiles.analyzer.model} (dynamic, normal=${profiles.analyzer.reasoningEffort})
 implementer: ${profiles.implementer.model} (${state.reasoningEffortOverride ? `${state.reasoningEffortOverride}, fixed` : `dynamic, normal=${profiles.implementer.reasoningEffort}`})
 implementer sandbox: ${state.sandbox}
 approvals: ${state.approvalPolicy}
-Run /help for commands. Ctrl+C cancels the workflow or exits while idle.\n`);
+Run /help for commands. Ctrl+C cancels the workflow or exits while idle.
+
+----------------------------------------------------------------------------------\n`);
 }
 
 export function printStatus(terminal: Terminal, state: CliState): void {
   const profiles = createAgentProfiles(state);
+
   terminal.write(`cwd: ${state.cwd}
 coordinator: ${profiles.coordinator.model} (${profiles.coordinator.reasoningEffort})
 analyzer: ${profiles.analyzer.model} (dynamic, normal=${profiles.analyzer.reasoningEffort})

@@ -1,6 +1,7 @@
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import { createInterface, type Interface } from 'node:readline';
 
+import { APP_SERVER_CLIENT_INFO } from '../config.js';
 import { ensureCodexHome } from '../utils/codex-home.js';
 import {
   type GetAccountResponse,
@@ -88,11 +89,7 @@ export class CodexAppServerClient implements AppServerClient {
         experimentalApi: true,
         requestAttestation: false,
       },
-      clientInfo: {
-        name: 'custom_codex_agent',
-        title: 'Custom Codex Agent',
-        version: '1.0.0',
-      },
+      clientInfo: APP_SERVER_CLIENT_INFO,
     });
     this.notify('initialized');
   }
