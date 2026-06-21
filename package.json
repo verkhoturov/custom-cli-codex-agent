@@ -1,5 +1,5 @@
 {
-  "name": "custom-codex-agent",
+  "name": "custom-cli-codex-agent",
   "version": "1.0.0",
   "description": "Interactive Codex client powered by Codex App Server",
   "repository": {

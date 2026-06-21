@@ -48,7 +48,7 @@ export function printSessionSummary(terminal: Terminal, state: CliState): void {
     const cwd = shellQuote(state.cwd);
     const threadId = shellQuote(state.workflow.coordinatorThreadId);
     terminal.write(
-      `To continue the coordinator session, run npm run resume -- ${threadId} -C ${cwd}\n`,
+      `To continue the coordinator session, run command "npm run resume -- ${threadId} -C ${cwd}"\n`,
     );
   }
 }
