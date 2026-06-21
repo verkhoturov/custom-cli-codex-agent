@@ -1,11 +1,11 @@
-import type { RpcRequest } from '../app-server/protocol.js';
+import type { RpcRequest } from '../../app-server/protocol.js';
 import {
   type AppServerRequest,
   decodeAppServerRequest,
   type UserInputQuestion,
-} from '../app-server/requests.js';
-import type { Terminal } from './terminal.js';
-import type { WorkingIndicator } from './working-indicator.js';
+} from '../../app-server/requests.js';
+import type { Terminal } from '../terminal.js';
+import type { WorkingIndicator } from '../turn/working-indicator.js';
 
 export async function handleServerRequest(
   request: RpcRequest,

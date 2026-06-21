@@ -1,7 +1,7 @@
 import type { AppServerClient } from '../app-server/client.js';
 import { resumeThread } from '../app-server/session.js';
 import { type CliState, isReasoningEffort, isSandboxMode, type ReasoningEffort } from '../types.js';
-import { printStatus, printWelcome } from './common.js';
+import { printStatus, printWelcome } from './session-output.js';
 import type { Terminal } from './terminal.js';
 
 export type CommandResult = 'continue' | 'exit';

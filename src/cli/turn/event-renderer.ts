@@ -1,6 +1,6 @@
-import type { RenderableAppServerEvent } from '../app-server/events.js';
-import type { FileChange, ThreadItem } from '../app-server/protocol.js';
-import type { Terminal } from './terminal.js';
+import type { RenderableAppServerEvent } from '../../app-server/events.js';
+import type { FileChange, ThreadItem } from '../../app-server/protocol.js';
+import type { Terminal } from '../terminal.js';
 
 type OpenLine = 'answer' | 'command' | 'reasoning';
 

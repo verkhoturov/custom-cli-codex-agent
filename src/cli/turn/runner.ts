@@ -1,15 +1,14 @@
-import type { AppServerClient } from '../app-server/client.js';
-import { type AppServerEvent, decodeAppServerEvent } from '../app-server/events.js';
-import type { TurnCompletedParams } from '../app-server/protocol.js';
-import { interruptTurn, startTurn } from '../app-server/session.js';
-import type { CliState } from '../types.js';
-import { getErrorMessage } from './common.js';
+import type { AppServerClient } from '../../app-server/client.js';
+import { type AppServerEvent, decodeAppServerEvent } from '../../app-server/events.js';
+import type { TurnCompletedParams } from '../../app-server/protocol.js';
+import { interruptTurn, startTurn } from '../../app-server/session.js';
+import type { CliState } from '../../types.js';
+import type { Terminal } from '../terminal.js';
 import {
   createAppServerOutputState,
   finishAppServerOutput,
   renderAppServerEvent,
-} from './render-app-server-event.js';
-import type { Terminal } from './terminal.js';
+} from './event-renderer.js';
 import { WorkingIndicator } from './working-indicator.js';
 
 interface ActiveTurn {
@@ -49,7 +48,8 @@ export class TurnRunner {
     this.terminal.write('\n[interrupting turn]\n');
     if (activeTurn.turnId && this.state.threadId) {
       void interruptTurn(this.client, this.state.threadId, activeTurn.turnId).catch(error => {
-        this.terminal.writeError(`Interrupt failed: ${getErrorMessage(error)}\n`);
+        const message = error instanceof Error ? error.message : String(error);
+        this.terminal.writeError(`Interrupt failed: ${message}\n`);
       });
     }
     return true;

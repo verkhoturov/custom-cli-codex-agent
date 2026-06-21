@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 
 import { CodexAppServerClient } from './app-server/client.js';
-import { checkCodexCli, runCli } from './cli/index.js';
+import { runCli } from './cli/index.js';
 import { usage } from './config.js';
+import { checkCodexCli } from './utils/check-codex-cli.js';
 import { parseArgs } from './utils/cli-arguments.js';
 import { loadLocalEnv, requireOpenAiApiKey } from './utils/environment.js';
 
 async function main(): Promise<void> {
   loadLocalEnv();
+
   const { help, state } = parseArgs(process.argv.slice(2));
 
   if (help) {

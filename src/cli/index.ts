@@ -1,15 +1,11 @@
 import type { AppServerClient } from '../app-server/client.js';
 import type { CliState } from '../types.js';
-import { checkCodexCli } from './check-codex-cli.js';
-import { getErrorMessage, printWelcome } from './common.js';
-import { handleCommand } from './handle-command.js';
-import { handleServerRequest } from './handle-server-request.js';
-import { PromptQueue } from './prompt-queue.js';
-import { printSessionSummary } from './session-summary.js';
+import { handleCommand } from './commands.js';
+import { handleServerRequest } from './server-requests/handler.js';
+import { PromptQueue } from './server-requests/queue.js';
+import { printSessionSummary, printWelcome } from './session-output.js';
 import { NodeTerminal, type Terminal } from './terminal.js';
-import { TurnRunner } from './turn-runner.js';
-
-export { checkCodexCli };
+import { TurnRunner } from './turn/runner.js';
 
 export async function runCli(
   state: CliState,
@@ -59,7 +55,8 @@ export async function runCli(
       try {
         await turnRunner.run(input);
       } catch (error) {
-        terminal.writeError(`\nError: ${getErrorMessage(error)}\n`);
+        const message = error instanceof Error ? error.message : String(error);
+        terminal.writeError(`\nError: ${message}\n`);
       }
     }
   } finally {

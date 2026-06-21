@@ -1,4 +1,4 @@
-import type { Terminal } from './terminal.js';
+import type { Terminal } from '../terminal.js';
 
 const CLEAR_LINE = '\r\u001b[2K';
 

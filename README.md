@@ -62,14 +62,6 @@ credentials и истории thread. Этот каталог принадлеж
 `auth.json` следует защищать как пароль. При первом запуске приложение создаёт
 `config.toml` с настройкой `forced_login_method = "api"`.
 
-Для запуска нативного Codex CLI с тем же проектным `CODEX_HOME` используйте
-wrapper-команду. Она сама передаёт абсолютный путь к `.codex-data`:
-
-```bash
-npm run codex
-npm run codex -- resume <thread-id>
-```
-
 ## Доступ и approvals
 
 Поддерживаются sandbox-режимы `read-only` и `workspace-write`. По умолчанию
