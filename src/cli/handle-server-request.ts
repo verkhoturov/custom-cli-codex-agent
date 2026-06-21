@@ -1,107 +1,104 @@
-import type { Interface } from 'node:readline/promises';
-
 import type { RpcRequest } from '../app-server/protocol.js';
+import {
+  type AppServerRequest,
+  decodeAppServerRequest,
+  type UserInputQuestion,
+} from '../app-server/requests.js';
+import type { Terminal } from './terminal.js';
 import type { WorkingIndicator } from './working-indicator.js';
 
 export async function handleServerRequest(
   request: RpcRequest,
-  readline: Interface,
+  terminal: Terminal,
   working: WorkingIndicator | undefined,
 ): Promise<unknown> {
-  switch (request.method) {
-    case 'item/commandExecution/requestApproval':
-      return handleCommandApproval(request.params, readline, working);
+  const decoded = decodeAppServerRequest(request);
+  if (!decoded) {
+    throw new Error(`Unsupported app-server request: ${request.method}`);
+  }
 
-    case 'item/fileChange/requestApproval':
-      return handleFileApproval(request.params, readline, working);
+  switch (decoded.type) {
+    case 'commandApproval':
+      return handleCommandApproval(decoded, terminal, working);
 
-    case 'item/permissions/requestApproval':
-      return handlePermissionApproval(request.params, readline, working);
+    case 'fileApproval':
+      return handleFileApproval(decoded, terminal, working);
 
-    case 'item/tool/requestUserInput':
-      return handleUserInput(request.params, readline, working);
+    case 'permissionApproval':
+      return handlePermissionApproval(decoded, terminal, working);
 
-    case 'mcpServer/elicitation/request':
-      return handleMcpElicitation(request.params, readline, working);
+    case 'userInput':
+      return handleUserInput(decoded.questions, terminal, working);
+
+    case 'mcpElicitation':
+      return handleMcpElicitation(decoded, terminal, working);
 
     default:
-      throw new Error(`Unsupported app-server request: ${request.method}`);
+      return assertNever(decoded);
   }
 }
 
 async function handleCommandApproval(
-  value: unknown,
-  readline: Interface,
+  request: Extract<AppServerRequest, { type: 'commandApproval' }>,
+  terminal: Terminal,
   working: WorkingIndicator | undefined,
 ): Promise<unknown> {
-  const params = asRecord(value);
-  const command = stringValue(params.command) || 'unknown command';
-  const reason = stringValue(params.reason);
-  process.stdout.write(`\nApproval required for command:\n${command}\n`);
-  if (reason) {
-    process.stdout.write(`Reason: ${reason}\n`);
+  terminal.write(`\nApproval required for command:\n${request.command}\n`);
+  if (request.reason) {
+    terminal.write(`Reason: ${request.reason}\n`);
   }
-  const answer = await ask(readline, working, 'Approve? [y]es/[a]ll session/[N]o: ');
+  const answer = await askChoice(terminal, working, 'Approve? [y]es/[a]ll session/[N]o: ');
   const decision = answer === 'a' ? 'acceptForSession' : answer === 'y' ? 'accept' : 'decline';
   return { decision };
 }
 
 async function handleFileApproval(
-  value: unknown,
-  readline: Interface,
+  request: Extract<AppServerRequest, { type: 'fileApproval' }>,
+  terminal: Terminal,
   working: WorkingIndicator | undefined,
 ): Promise<unknown> {
-  const params = asRecord(value);
-  const reason = stringValue(params.reason) || 'write outside the current sandbox boundary';
-  process.stdout.write(`\nApproval required for file changes: ${reason}\n`);
-  const answer = await ask(readline, working, 'Approve? [y]es/[a]ll session/[N]o: ');
+  terminal.write(`\nApproval required for file changes: ${request.reason}\n`);
+  const answer = await askChoice(terminal, working, 'Approve? [y]es/[a]ll session/[N]o: ');
   const decision = answer === 'a' ? 'acceptForSession' : answer === 'y' ? 'accept' : 'decline';
   return { decision };
 }
 
 async function handlePermissionApproval(
-  value: unknown,
-  readline: Interface,
+  request: Extract<AppServerRequest, { type: 'permissionApproval' }>,
+  terminal: Terminal,
   working: WorkingIndicator | undefined,
 ): Promise<unknown> {
-  const params = asRecord(value);
-  const reason = stringValue(params.reason) || 'additional permissions requested';
-  process.stdout.write(`\nPermission request: ${reason}\n`);
-  const answer = await ask(readline, working, 'Grant for this turn? [y/N]: ');
+  terminal.write(`\nPermission request: ${request.reason}\n`);
+  const answer = await askChoice(terminal, working, 'Grant for this turn? [y/N]: ');
   return {
-    permissions: answer === 'y' ? asRecord(params.permissions) : {},
+    permissions: answer === 'y' ? request.permissions : {},
     scope: 'turn',
   };
 }
 
 async function handleUserInput(
-  value: unknown,
-  readline: Interface,
+  questions: UserInputQuestion[],
+  terminal: Terminal,
   working: WorkingIndicator | undefined,
 ): Promise<unknown> {
-  const params = asRecord(value);
-  const questions = Array.isArray(params.questions) ? params.questions : [];
   const answers: Record<string, { answers: string[] }> = {};
 
-  for (const value of questions) {
-    const question = asRecord(value);
-    const id = stringValue(question.id);
-    const prompt =
-      stringValue(question.question) || stringValue(question.header) || 'Input required';
-    const options = Array.isArray(question.options) ? question.options : [];
-    if (options.length > 0) {
-      process.stdout.write(`\n${prompt}\n`);
-      options.forEach((option, index) => {
-        const record = asRecord(option);
-        process.stdout.write(`  ${index + 1}. ${stringValue(record.label)}\n`);
+  for (const question of questions) {
+    if (question.options.length > 0) {
+      terminal.write(`\n${question.prompt}\n`);
+      question.options.forEach((option, index) => {
+        terminal.write(`  ${index + 1}. ${option.label}\n`);
       });
     }
-    const answer = await ask(readline, working, `${options.length > 0 ? 'Choice' : prompt}: `);
+    const answer = await askText(
+      terminal,
+      working,
+      `${question.options.length > 0 ? 'Choice' : question.prompt}: `,
+    );
     const selected = Number.parseInt(answer, 10);
-    const selectedOption = Number.isNaN(selected) ? undefined : options[selected - 1];
-    const selectedLabel = selectedOption ? stringValue(asRecord(selectedOption).label) : answer;
-    if (id) {
-      answers[id] = { answers: [selectedLabel] };
+    const selectedOption = Number.isNaN(selected) ? undefined : question.options[selected - 1];
+    if (question.id) {
+      answers[question.id] = { answers: [selectedOption?.label || answer] };
     }
   }
 
@@ -109,34 +106,36 @@ async function handleUserInput(
 }
 
 async function handleMcpElicitation(
-  value: unknown,
-  readline: Interface,
+  request: Extract<AppServerRequest, { type: 'mcpElicitation' }>,
+  terminal: Terminal,
   working: WorkingIndicator | undefined,
 ): Promise<unknown> {
-  const params = asRecord(value);
-  const message = stringValue(params.message) || 'MCP server requests user confirmation';
-  process.stdout.write(`\n${message}\n`);
-  const answer = await ask(readline, working, 'Accept? [y/N]: ');
+  terminal.write(`\n${request.message}\n`);
+  const answer = await askChoice(terminal, working, 'Accept? [y/N]: ');
   return { _meta: null, action: answer === 'y' ? 'accept' : 'decline', content: null };
 }
 
-async function ask(
-  readline: Interface,
+async function askText(
+  terminal: Terminal,
   working: WorkingIndicator | undefined,
   prompt: string,
 ): Promise<string> {
   working?.hide();
   try {
-    return (await readline.question(prompt)).trim().toLowerCase();
+    return (await terminal.question(prompt)).trim();
   } finally {
     working?.show();
   }
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+async function askChoice(
+  terminal: Terminal,
+  working: WorkingIndicator | undefined,
+  prompt: string,
+): Promise<string> {
+  return (await askText(terminal, working, prompt)).toLowerCase();
 }
 
-function stringValue(value: unknown): string {
-  return typeof value === 'string' ? value : '';
+function assertNever(value: never): never {
+  throw new Error(`Unhandled app-server request: ${JSON.stringify(value)}`);
 }

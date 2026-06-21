@@ -1,3 +1,5 @@
+import type { Terminal } from './terminal.js';
+
 const CLEAR_LINE = '\r\u001b[2K';
 
 export class WorkingIndicator {
@@ -5,8 +7,10 @@ export class WorkingIndicator {
   private readonly startedAt = Date.now();
   private visible = false;
 
+  constructor(private readonly terminal: Terminal) {}
+
   start(): void {
-    if (!process.stdout.isTTY || this.interval) {
+    if (!this.terminal.isTTY || this.interval) {
       return;
     }
 
@@ -15,7 +19,7 @@ export class WorkingIndicator {
   }
 
   show(): void {
-    if (!process.stdout.isTTY || this.visible) {
+    if (!this.terminal.isTTY || this.visible) {
       return;
     }
 
@@ -24,11 +28,11 @@ export class WorkingIndicator {
   }
 
   hide(): void {
-    if (!this.visible || !process.stdout.isTTY) {
+    if (!this.visible || !this.terminal.isTTY) {
       return;
     }
 
-    process.stdout.write(CLEAR_LINE);
+    this.terminal.write(CLEAR_LINE);
     this.visible = false;
   }
 
@@ -46,6 +50,6 @@ export class WorkingIndicator {
     }
 
     const elapsedSeconds = Math.floor((Date.now() - this.startedAt) / 1_000);
-    process.stdout.write(`${CLEAR_LINE}Working (${elapsedSeconds}s, Ctrl+C to interrupt)`);
+    this.terminal.write(`${CLEAR_LINE}Working (${elapsedSeconds}s, Ctrl+C to interrupt)`);
   }
 }

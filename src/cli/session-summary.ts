@@ -1,8 +1,10 @@
 import type { ThreadTokenUsage } from '../app-server/protocol.js';
+import type { Terminal } from './terminal.js';
 
 const numberFormat = new Intl.NumberFormat('en-US');
 
 export function printSessionSummary(
+  terminal: Terminal,
   usage: ThreadTokenUsage | undefined,
   threadId: string | undefined,
 ): void {
@@ -13,12 +15,12 @@ export function printSessionSummary(
   const totalTokens = totals?.totalTokens ?? 0;
   const cached = cachedTokens ? ` (+ ${formatNumber(cachedTokens)} cached)` : '';
 
-  process.stdout.write(
+  terminal.write(
     `\nToken usage: total=${formatNumber(totalTokens)} input=${formatNumber(inputTokens)}${cached} output=${formatNumber(outputTokens)}\n`,
   );
 
   if (threadId) {
-    process.stdout.write(`To continue this session, run npm run codex -- resume ${threadId}\n`);
+    terminal.write(`To continue this session, run npm run codex -- resume ${threadId}\n`);
   }
 }
 

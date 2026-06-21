@@ -1,11 +1,11 @@
 import type { CliState } from '../types.js';
-import type { CodexAppServerClient } from './client.js';
+import type { AppServerClient } from './client.js';
 import type { ThreadResumeResponse, ThreadStartResponse, TurnStartResponse } from './protocol.js';
 
 const DEVELOPER_INSTRUCTIONS =
   'You are a software engineering agent focused on analyzing repositories, writing code, running commands, and explaining results clearly.';
 
-export async function startThread(client: CodexAppServerClient, state: CliState): Promise<string> {
+export async function startThread(client: AppServerClient, state: CliState): Promise<string> {
   const response = await client.request<ThreadStartResponse>('thread/start', {
     approvalPolicy: state.approvalPolicy,
     config: { model_reasoning_effort: state.reasoningEffort },
@@ -20,7 +20,7 @@ export async function startThread(client: CodexAppServerClient, state: CliState)
 }
 
 export async function resumeThread(
-  client: CodexAppServerClient,
+  client: AppServerClient,
   state: CliState,
   threadId: string,
 ): Promise<string> {
@@ -38,7 +38,7 @@ export async function resumeThread(
 }
 
 export async function startTurn(
-  client: CodexAppServerClient,
+  client: AppServerClient,
   state: CliState,
   input: string,
 ): Promise<string> {
@@ -56,7 +56,7 @@ export async function startTurn(
 }
 
 export async function interruptTurn(
-  client: CodexAppServerClient,
+  client: AppServerClient,
   threadId: string,
   turnId: string,
 ): Promise<void> {

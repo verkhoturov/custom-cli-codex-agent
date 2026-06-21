@@ -113,6 +113,13 @@ Reasoning summaries являются краткими сводками, пред
 
 Для диагностики протокола можно запустить CLI с `DEBUG_APP_SERVER=1`.
 
+Проверки для разработки:
+
+```bash
+npm run check
+npm run build
+```
+
 ## Архитектура
 
 ```text

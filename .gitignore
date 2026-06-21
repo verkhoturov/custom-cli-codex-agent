@@ -3,3 +3,5 @@ dist
 .env
 .codex-data
 *.log
+
+AGENTS.md

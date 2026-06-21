@@ -20,14 +20,23 @@ interface PendingRequest {
   resolve: (value: unknown) => void;
 }
 
+export interface AppServerClient {
+  onExit(handler: (error: Error) => void): () => void;
+  onNotification(handler: NotificationHandler): () => void;
+  request<TResult>(method: string, params?: unknown): Promise<TResult>;
+  setServerRequestHandler(handler: ServerRequestHandler): void;
+}
+
 export interface CodexAppServerClientOptions {
   apiKey: string;
   codexHome: string;
   cwd: string;
 }
 
-export class CodexAppServerClient {
+export class CodexAppServerClient implements AppServerClient {
   private child?: ChildProcessWithoutNullStreams;
+  private exitError?: Error;
+  private readonly exitHandlers = new Set<(error: Error) => void>();
   private nextRequestId = 1;
   private readonly notificationHandlers = new Set<NotificationHandler>();
   private readonly pendingRequests = new Map<RequestId, PendingRequest>();
@@ -42,6 +51,8 @@ export class CodexAppServerClient {
     }
 
     ensureCodexHome(this.options.codexHome);
+
+    this.exitError = undefined;
 
     const childEnv: NodeJS.ProcessEnv = {
       ...process.env,
@@ -107,6 +118,16 @@ export class CodexAppServerClient {
   onNotification(handler: NotificationHandler): () => void {
     this.notificationHandlers.add(handler);
     return () => this.notificationHandlers.delete(handler);
+  }
+
+  onExit(handler: (error: Error) => void): () => void {
+    if (this.exitError) {
+      const error = this.exitError;
+      queueMicrotask(() => handler(error));
+      return () => undefined;
+    }
+    this.exitHandlers.add(handler);
+    return () => this.exitHandlers.delete(handler);
   }
 
   request<TResult>(method: string, params?: unknown): Promise<TResult> {
@@ -212,10 +233,20 @@ export class CodexAppServerClient {
   }
 
   private handleExit(error: Error): void {
+    if (this.exitError) {
+      return;
+    }
+    this.exitError = error;
+    this.child = undefined;
     for (const pending of this.pendingRequests.values()) {
       pending.reject(error);
     }
     this.pendingRequests.clear();
+    const exitHandlers = [...this.exitHandlers];
+    this.exitHandlers.clear();
+    for (const handler of exitHandlers) {
+      handler(error);
+    }
   }
 }
 

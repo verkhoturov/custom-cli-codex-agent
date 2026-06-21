@@ -1,4 +1,6 @@
-import type { RpcNotification, ThreadItem } from '../app-server/protocol.js';
+import type { RenderableAppServerEvent } from '../app-server/events.js';
+import type { FileChange, ThreadItem } from '../app-server/protocol.js';
+import type { Terminal } from './terminal.js';
 
 type OpenLine = 'answer' | 'command' | 'reasoning';
 
@@ -8,57 +10,66 @@ export interface AppServerOutputState {
   errorDisplayed: boolean;
   openLine?: OpenLine;
   streamedText: boolean;
+  terminal: Terminal;
 }
 
-export function createAppServerOutputState(beforeWrite?: () => void): AppServerOutputState {
-  return { beforeWrite, changedFiles: new Set(), errorDisplayed: false, streamedText: false };
+export function createAppServerOutputState(
+  terminal: Terminal,
+  beforeWrite?: () => void,
+): AppServerOutputState {
+  return {
+    beforeWrite,
+    changedFiles: new Set(),
+    errorDisplayed: false,
+    streamedText: false,
+    terminal,
+  };
 }
 
-export function renderAppServerNotification(
-  notification: RpcNotification,
+export function renderAppServerEvent(
+  event: RenderableAppServerEvent,
   output: AppServerOutputState,
 ): void {
-  const params = asRecord(notification.params);
-
-  switch (notification.method) {
-    case 'item/reasoning/summaryTextDelta':
-      renderDelta(output, 'reasoning', '[reasoning] ', params.delta);
+  switch (event.type) {
+    case 'reasoningDelta':
+      renderDelta(output, 'reasoning', '[reasoning] ', event.delta);
       return;
 
-    case 'item/agentMessage/delta':
-      if (renderDelta(output, 'answer', 'agent> ', params.delta)) {
+    case 'agentMessageDelta':
+      if (renderDelta(output, 'answer', 'agent> ', event.delta)) {
         output.streamedText = true;
       }
       return;
 
-    case 'item/commandExecution/outputDelta':
-      renderDelta(output, 'command', '', params.delta);
+    case 'commandOutputDelta':
+      renderDelta(output, 'command', '', event.delta);
       return;
 
-    case 'item/fileChange/patchUpdated':
-      renderFileChanges(output, params.changes);
+    case 'filePatch':
+      renderFileChanges(output, event.changes);
       return;
 
-    case 'item/started':
-      renderItemStarted(output, params.item);
+    case 'itemStarted':
+      renderItemStarted(output, event.item);
       return;
 
-    case 'item/completed':
-      renderItemCompleted(output, params.item);
+    case 'itemCompleted':
+      renderItemCompleted(output, event.item);
       return;
 
-    case 'error': {
-      const error = asRecord(params.error);
+    case 'error':
       closeOpenLine(output);
-      write(output, `[error] ${stringValue(error.message) || 'Codex turn failed'}\n`);
+      write(output, `[error] ${event.message}\n`);
       output.errorDisplayed = true;
       return;
-    }
 
     case 'warning':
-    case 'configWarning':
       closeOpenLine(output);
-      write(output, `[warning] ${stringValue(params.message) || 'Codex warning'}\n`);
+      write(output, `[warning] ${event.message}\n`);
+      return;
+
+    default:
+      assertNever(event);
   }
 }
 
@@ -66,12 +77,7 @@ export function finishAppServerOutput(output: AppServerOutputState): void {
   closeOpenLine(output);
 }
 
-function renderItemStarted(output: AppServerOutputState, value: unknown): void {
-  const item = value as ThreadItem | undefined;
-  if (!item) {
-    return;
-  }
-
+function renderItemStarted(output: AppServerOutputState, item: ThreadItem): void {
   switch (item.type) {
     case 'commandExecution':
       closeOpenLine(output);
@@ -93,12 +99,7 @@ function renderItemStarted(output: AppServerOutputState, value: unknown): void {
   }
 }
 
-function renderItemCompleted(output: AppServerOutputState, value: unknown): void {
-  const item = value as ThreadItem | undefined;
-  if (!item) {
-    return;
-  }
-
+function renderItemCompleted(output: AppServerOutputState, item: ThreadItem): void {
   if (item.type === 'commandExecution') {
     closeLine(output, 'command');
     if (typeof item.exitCode === 'number' && item.exitCode !== 0) {
@@ -107,20 +108,14 @@ function renderItemCompleted(output: AppServerOutputState, value: unknown): void
   }
 }
 
-function renderFileChanges(output: AppServerOutputState, value: unknown): void {
-  if (!Array.isArray(value)) {
-    return;
-  }
-
-  for (const change of value) {
-    const record = asRecord(change);
-    const path = stringValue(record.path);
-    if (!path || output.changedFiles.has(path)) {
+function renderFileChanges(output: AppServerOutputState, changes: FileChange[] | undefined): void {
+  for (const change of changes || []) {
+    if (output.changedFiles.has(change.path)) {
       continue;
     }
-    output.changedFiles.add(path);
+    output.changedFiles.add(change.path);
     closeOpenLine(output);
-    write(output, `[file ${changeKind(record.kind)}] ${path}\n`);
+    write(output, `[file ${change.kind}] ${change.path}\n`);
   }
 }
 
@@ -128,9 +123,8 @@ function renderDelta(
   output: AppServerOutputState,
   line: OpenLine,
   prefix: string,
-  value: unknown,
+  delta: string,
 ): boolean {
-  const delta = stringValue(value);
   if (!delta) {
     return false;
   }
@@ -167,18 +161,9 @@ function closeOpenLine(output: AppServerOutputState): void {
 
 function write(output: AppServerOutputState, value: string): void {
   output.beforeWrite?.();
-  process.stdout.write(value);
+  output.terminal.write(value);
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-}
-
-function stringValue(value: unknown): string {
-  return typeof value === 'string' ? value : '';
-}
-
-function changeKind(value: unknown): string {
-  const type = stringValue(asRecord(value).type);
-  return type || 'update';
+function assertNever(value: never): never {
+  throw new Error(`Unhandled app-server event: ${JSON.stringify(value)}`);
 }

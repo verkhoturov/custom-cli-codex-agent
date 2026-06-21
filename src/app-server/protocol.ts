@@ -61,9 +61,15 @@ export interface ThreadTokenUsage {
   total: TokenUsageBreakdown;
 }
 
+export interface FileChange {
+  diff?: string;
+  kind: string;
+  path: string;
+}
+
 export interface ThreadItem {
   aggregatedOutput?: string | null;
-  changes?: Array<{ diff: string; kind: unknown; path: string }>;
+  changes?: FileChange[];
   command?: string;
   durationMs?: number | null;
   error?: unknown;
@@ -72,6 +78,7 @@ export interface ThreadItem {
   query?: string;
   server?: string;
   status?: string;
+  text?: string;
   tool?: string;
   type: string;
 }
@@ -82,6 +89,7 @@ export interface TurnCompletedParams {
     durationMs: number | null;
     error: { message?: string } | null;
     id: string;
+    items?: ThreadItem[];
     status: 'completed' | 'failed' | 'inProgress' | 'interrupted';
   };
 }
